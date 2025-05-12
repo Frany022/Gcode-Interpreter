@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#define STEP_PER_MM_X 1 //don't know the exact amount yet
+#define STEP_PER_MM_Y 1 //don't know the exact amount yet
+#define STEP_PER_MM_Z 1 //don't know the exact amount yet
 
 typedef struct{
     uint8_t command;
     uint8_t flags;
-    int16_t x, y, z;
+    int32_t x, y, z;
     uint16_t feedrate;
 }__attribute__((packed)) BinaryFlags;
 
@@ -44,7 +47,7 @@ GcodeType parser(const char* line, GcodeCommand* cmd)
                     case 28: cmd->command = G28; break;
                     case 1: cmd->command = G01; break;
                     case 0: cmd->command = G00; break;
-                    default: cmd->command = -1;break;
+                    default: cmd->command = -1; break;
                 }
                 break;
             case 'X':
@@ -80,6 +83,16 @@ uint8_t compute_flags(const GcodeCommand *cmd)
     return flags;
 }
 
+void steps(const GcodeCommand* cmd, BinaryFlags* flags)
+{
+    flags->command = (uint8_t)cmd->command;
+    flags->flags = compute_flags((GcodeCommand*)cmd);
+    flags->x = cmd->has_x ? cmd->x * STEP_PER_MM_X : 0;
+    flags->y = cmd->has_y ? cmd->y * STEP_PER_MM_Y : 0;
+    flags->z = cmd->has_z ? cmd->z * STEP_PER_MM_Z : 0;
+    flags->feedrate = cmd->has_f ? cmd->f : 0;
+}
+
 int main()
 {
     GcodeCommand cmd;
@@ -96,12 +109,7 @@ int main()
     {
         if(line[0] == ';' || line[0] == '\n') continue;
         parser(line,&cmd);
-        flags.command = cmd.command;
-        flags.flags = compute_flags(&cmd);
-        flags.x = cmd.x;
-        flags.y = cmd.y;
-        flags.z = cmd.z;
-        flags.feedrate = cmd.feedrate;
+        steps(&cmd,&flags);
         /* testing
         printf("parsed: G%02d", cmd.command);
         if(cmd.has_x) printf(" x=%d ",cmd.x);
