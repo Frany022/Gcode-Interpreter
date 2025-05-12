@@ -66,7 +66,6 @@ int main()
 {
     GcodeCommand cmd;
     char line[128];
-    char* token;
     char* filepath = "test.gcode";
     FILE* fp = fopen(filepath, "r");
     if(!fp)
