@@ -1,7 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//its only a parser so far
+#include <stdint.h>
+
+typedef struct{
+    uint8_t command;
+    uint8_t flags;
+    int16_t x, y, z;
+    uint16_t feedrate;
+}__attribute__((packed)) BinaryFlags;
+
 typedef enum{
     //G17 = 17, //select XY plane
     //G90 = 90, //absolute positioning
@@ -62,9 +70,20 @@ GcodeType parser(const char* line, GcodeCommand* cmd)
 }
 
 
+uint8_t compute_flags(const GcodeCommand *cmd)
+{
+    uint8_t flags = 0;
+    if(cmd->has_x) flags |= (1 << 0);
+    if(cmd->has_y) flags |= (1 << 1);
+    if(cmd->has_z) flags |= (1 << 2);
+    if(cmd->has_f) flags |= (1 << 3);
+    return flags;
+}
+
 int main()
 {
     GcodeCommand cmd;
+    BinaryFlags flags;
     char line[128];
     char* filepath = "test.gcode";
     FILE* fp = fopen(filepath, "r");
@@ -77,17 +96,23 @@ int main()
     {
         if(line[0] == ';' || line[0] == '\n') continue;
         parser(line,&cmd);
-
+        flags.command = cmd.command;
+        flags.flags = compute_flags(&cmd);
+        flags.x = cmd.x;
+        flags.y = cmd.y;
+        flags.z = cmd.z;
+        flags.feedrate = cmd.feedrate;
+        /* testing
         printf("parsed: G%02d", cmd.command);
         if(cmd.has_x) printf(" x=%d ",cmd.x);
         if(cmd.has_y) printf(" y=%d ",cmd.y);
         if(cmd.has_z) printf(" z=%d ",cmd.z); //probably not needed
         if(cmd.has_f) printf(" f=%d ", cmd.feedrate); //probably not needed
         printf("\n");
+        printf("Parsed: G%2d and flags: 0x%02X\n",flags.command,flags.flags);
+        */
     }
     fclose(fp);
     return 0;
 
 }
-
-
