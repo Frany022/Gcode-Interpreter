@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+//its only a parser so far
 typedef enum{
     //G17 = 17, //select XY plane
     //G90 = 90, //absolute positioning
