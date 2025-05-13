@@ -86,7 +86,7 @@ uint8_t compute_flags(const GcodeCommand *cmd)
 void steps(const GcodeCommand* cmd, BinaryFlags* flags)
 {
     flags->command = (uint8_t)cmd->command;
-    flags->flags = compute_flags((GcodeCommand*)cmd);
+    flags->flags = compute_flags(cmd);
     flags->x = cmd->has_x ? cmd->x * STEP_PER_MM_X : 0;
     flags->y = cmd->has_y ? cmd->y * STEP_PER_MM_Y : 0;
     flags->z = cmd->has_z ? cmd->z * STEP_PER_MM_Z : 0;
