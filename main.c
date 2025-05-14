@@ -2,9 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#define STEP_PER_MM_X 1 //don't know the exact amount yet
-#define STEP_PER_MM_Y 1 //don't know the exact amount yet
-#define STEP_PER_MM_Z 1 //don't know the exact amount yet
+/*
+TODO:
+do something about different file types
+UART communication to FPGA board
+*/
+const int STEP_PER_MM_X = 1;
+const int STEP_PER_MM_Y = 1;
+const int STEP_PER_MM_Z = 1;
+#define FLAG_X (1 << 0)
+#define FLAG_Y (1 << 1)
+#define FLAG_Z (1 << 2)
+#define FLAG_F (1 << 3)
 
 typedef struct{
     uint8_t command;
@@ -76,10 +85,10 @@ GcodeType parser(const char* line, GcodeCommand* cmd)
 uint8_t compute_flags(const GcodeCommand *cmd)
 {
     uint8_t flags = 0;
-    if(cmd->has_x) flags |= (1 << 0);
-    if(cmd->has_y) flags |= (1 << 1);
-    if(cmd->has_z) flags |= (1 << 2);
-    if(cmd->has_f) flags |= (1 << 3);
+    if(cmd->has_x) flags |= FLAG_X;
+    if(cmd->has_y) flags |= FLAG_Y;
+    if(cmd->has_z) flags |= FLAG_Z;
+    if(cmd->has_f) flags |= FLAG_F;
     return flags;
 }
 
@@ -90,7 +99,7 @@ void steps(const GcodeCommand* cmd, BinaryFlags* flags)
     flags->x = cmd->has_x ? cmd->x * STEP_PER_MM_X : 0;
     flags->y = cmd->has_y ? cmd->y * STEP_PER_MM_Y : 0;
     flags->z = cmd->has_z ? cmd->z * STEP_PER_MM_Z : 0;
-    flags->feedrate = cmd->has_f ? cmd->f : 0;
+    flags->feedrate = cmd->has_f ? cmd->feedrate : 0;
 }
 
 int main()
