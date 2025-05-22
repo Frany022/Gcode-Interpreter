@@ -32,11 +32,12 @@ typedef struct{
 
 typedef enum{
     //G17 = 17, //select XY plane
-    //G90 = 90, //absolute positioning
+    G90 = 90, //absolute positioning
     G28 = 28, //autohome, base position
     G00 = 0, //rapid movement, move to position at max speed
     G01 = 1,  //Move to position with feed rate
-    M30 = 30,  //stop program
+    G21 = 21, //set to mm
+    M30 = 30  //end of program
 }GcodeType;
 
 typedef struct{
@@ -63,11 +64,15 @@ GcodeType parser(const char* line, GcodeCommand* cmd)
                 switch(gnumber)
                 {
                     case 28: cmd->command = G28; break;
+                    case 90: cmd->command = G90; break;
+                    case 21: cmd->command = G21; break;
                     case 1: cmd->command = G01; break;
                     case 0: cmd->command = G00; break;
                     default: cmd->command = -1; break;
                 }
                 break;
+            case 'M':
+                if(gnumber == 30) cmd->command = M30;
             case 'X':
                 cmd->x = atoi(&token[1]);
                 cmd->has_x = 1;
@@ -111,9 +116,6 @@ void steps(const GcodeCommand* cmd, BinaryFlags* flags)
     flags->feedrate = cmd->has_f ? cmd->feedrate : 0;
 }
 
-
-
-
 int main()
 {
     GcodeCommand cmd;
@@ -131,6 +133,7 @@ int main()
     {
         if(line[0] == ';' || line[0] == '\n') continue;
         parser(line,&cmd);
+        if(cmd.command == G90 || cmd.command == G21) continue;
         steps(&cmd,&flags);
 
         //checking if any coordinates changed so we don't send the same data:
