@@ -2,18 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "xil_printf.h"
-#include "xbasic_types.h"
-#include "xparameters.h"
-#include "xuartps_hw.h" // XUARTPS_FIFO_OFFSET
-#define UART_BASEADDR XPAR_XUARTPS_0_BASEADDR //supposedly the base address or, _1_ for using second UART connection
-#define is_valid(data) ((data & (1<<8)) > 0)
-/*
-TODO:
-do something about different file types
-step directions
-maybe feedback from FPGA
-*/
+#include <errno.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 const int STEP_PER_MM_X = 1;
 const int STEP_PER_MM_Y = 1;
 const int STEP_PER_MM_Z = 1;
@@ -73,6 +66,7 @@ GcodeType parser(const char* line, GcodeCommand* cmd)
                 break;
             case 'M':
                 if(gnumber == 30) cmd->command = M30;
+                break;
             case 'X':
                 cmd->x = atoi(&token[1]);
                 cmd->has_x = 1;
@@ -116,6 +110,49 @@ void steps(const GcodeCommand* cmd, BinaryFlags* flags)
     flags->feedrate = cmd->has_f ? cmd->feedrate : 0;
 }
 
+int openSerial(const char* device)
+{
+    int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    if(fd < 0)
+    {
+        perror("no serial port for you\n");
+        return -1;
+    }
+    struct termios tty;
+    memset(&tty, 0, sizeof(tty));
+    if(tcgetattr(fd, &tty) != 0)
+    {
+        perror("error with tcgetatttr\n");
+        close(fd);
+        return -1;
+    }
+
+    cfsetospeed(&tty, B115200);
+    cfsetispeed(&tty, B115200);
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
+    tty.c_iflag &= ~IGNBRK;
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
+    tty.c_cc[VMIN]  = 1;
+    tty.c_cc[VTIME] = 1;
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~(PARENB | PARODD);
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag &= ~CRTSCTS;
+
+    if(tcsetattr(fd,TCSANOW, &tty) != 0)
+    {
+        perror("something with tcsetattr\n");
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+}
+
+
 int main()
 {
     GcodeCommand cmd;
@@ -123,6 +160,8 @@ int main()
     char line[128];
     char* filepath = "test.gcode";
     FILE* fp = fopen(filepath, "r");
+    int serial_fd = openSerial("/dev/ttyUSB0");
+    if(serial_fd < 0) return 1;
     int last_x = -1, last_y = -1, last_z = -1, last_feedrate = -1; //feedrate probably not needed but its there just in case
     if(!fp)
     {
@@ -144,14 +183,7 @@ int main()
             last_z = cmd.has_z ? cmd.z : last_z;
             last_feedrate = cmd.has_f ? cmd.feedrate : last_feedrate;
 
-            uint8_t* ptr = (uint8_t)&flags;
-
-            for(int i = 0; i < sizeof(BinaryFlags); i++)
-            {
-                while(XUartPs_IsTransmitFull(UART_BASEADDR));
-                XUartPs_WriteReg(UART_BASEADDR, XUARTPS_FIFO_OFFSET, ptr[i]); //sending raw bytes directly not the memory-mapped thing
-            }
-
+            write(serial_fd, &flags, sizeof(BinaryFlags));
         }
         /* testing
         printf("parsed: G%02d", cmd.command);
