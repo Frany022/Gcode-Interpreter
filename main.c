@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <errno.h>
 #include <termios.h>
 #include <unistd.h>
@@ -112,12 +113,17 @@ void steps(const GcodeCommand* cmd, BinaryFlags* flags)
 
 int openSerial(const char* device)
 {
-    int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    printf("oawngoiawgn\n");
+    int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
+    printf("tty\n");
     if(fd < 0)
     {
         perror("no serial port for you\n");
         return -1;
     }
+
+    printf("oawngoiawgn\n");
+
     struct termios tty;
     memset(&tty, 0, sizeof(tty));
     if(tcgetattr(fd, &tty) != 0)
@@ -126,6 +132,8 @@ int openSerial(const char* device)
         close(fd);
         return -1;
     }
+
+    printf("oawngoiawgn\n");
 
     cfsetospeed(&tty, B115200);
     cfsetispeed(&tty, B115200);
@@ -155,36 +163,70 @@ int openSerial(const char* device)
 
 int main()
 {
+    printf("oawngoiawgn\n");
     GcodeCommand cmd;
     BinaryFlags flags;
     char line[128];
     char* filepath = "test.gcode";
     FILE* fp = fopen(filepath, "r");
-    int serial_fd = openSerial("/dev/ttyUSB0");
+
+    printf("oawngoiawgn\n");
+
+    fseek(fp, 0, SEEK_END);
+    size_t fp_size = ftell(fp);
+    rewind(fp);
+
+    printf("oawngoiawgn\n");
+
+    char *fp_contents = malloc(fp_size+1);
+    fread(fp_contents, 1, fp_size, fp);
+    fp_contents[fp_size] = 0;
+
+    printf("oawngoiawgn\n");
+
+    fclose(fp);
+
+    printf("oawngoiawgn\n");
+
+    int serial_fd = openSerial("/dev/tty.usbmodem064101C21F221");
     if(serial_fd < 0) return 1;
     int last_x = -1, last_y = -1, last_z = -1, last_feedrate = -1; //feedrate probably not needed but its there just in case
-    if(!fp)
+    printf("oawngoiawgn\n");
+
+    while(*fp_contents)
     {
-        perror("File can't be opened");
-        return 1;
-    }
-    while(fgets(line, sizeof(line), fp))
-    {
-        if(line[0] == ';' || line[0] == '\n') continue;
+        char *start = fp_contents;
+        while (*fp_contents && (*fp_contents)!='\n') ++fp_contents;
+        ++fp_contents;
+
+        ptrdiff_t size = fp_contents-start;
+        memcpy(line, start, size);
+        line[size] = 0;
+
+        /*if(line[0] == ';' || line[0] == '\n') continue;
         parser(line,&cmd);
         if(cmd.command == G90 || cmd.command == G21) continue;
-        steps(&cmd,&flags);
+        steps(&cmd,&flags);*/
+
+        printf("oawngoiawgn\n");
+        char something;
+        while(read(serial_fd, &something, 1) <= 0) printf("waiting\n");
+        write(serial_fd, &flags, sizeof(BinaryFlags));
+        fsync(serial_fd);
 
         //checking if any coordinates changed so we don't send the same data:
-        if((cmd.has_x && cmd.x != last_x) || (cmd.has_y && cmd.y != last_y) || (cmd.has_z && cmd.z != last_z) || (cmd.has_f && cmd.feedrate != last_feedrate))
+        /*if((cmd.has_x && cmd.x != last_x) || (cmd.has_y && cmd.y != last_y) || (cmd.has_z && cmd.z != last_z) || (cmd.has_f && cmd.feedrate != last_feedrate))
         {
             last_x = cmd.has_x ? cmd.x : last_x;
             last_y = cmd.has_y ? cmd.y : last_y;
             last_z = cmd.has_z ? cmd.z : last_z;
             last_feedrate = cmd.has_f ? cmd.feedrate : last_feedrate;
-
+            char something;
+            printf("oawngoiawgn\n");
+            while(read(serial_fd, &something, 1) <= 0) printf("waiting\n");
             write(serial_fd, &flags, sizeof(BinaryFlags));
-        }
+            fsync(serial_fd);
+        }*/
         /* testing
         printf("parsed: G%02d", cmd.command);
         if(cmd.has_x) printf(" x=%d ",cmd.x);
@@ -195,7 +237,8 @@ int main()
         printf("Parsed: G%2d and flags: 0x%02X\n",flags.command,flags.flags);
         */
     }
-    fclose(fp);
+    //fclose(fp);
+    close(serial_fd);
     return 0;
 
 }
